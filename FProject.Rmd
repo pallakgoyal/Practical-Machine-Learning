@@ -1,0 +1,67 @@
+---
+title: "ML based prediction of quality of exercise"
+author: "Pallak Goyal"
+date: "2023-03-27"
+output: html_document
+---
+##Introduction
+The quantified self movement has resulted in a lot of data on movements by people being generated. The following analysis of the Human Activity Records Database seeks to identify the category of quality of workout by an individual by taking a number of measures as the predictors. The model was built to maximise accuracy. As the person building he model os no expert in matters of biology, sports or exercise, or for that matter any field distantly related to those whose knowledge may help in such predictions, the results are purely algorithmic. This is also the reason why there was no emphasis on the interpretability of the results.
+##Data Loading
+```{r}
+## training data link
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+##test data link
+url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url1,"./training.csv")
+training <- read.csv("./training.csv")
+download.file(url2,"./testing.csv")
+testing <- read.csv("./testing.csv")
+```
+##Model Building
+The database consisted of 19622 observations for 160 variables. However, there was very little measured information available on certain variables. Hence, as a first step the variables having less than 10% of the total measures as NA were identified. The code for the same is given below.
+```{r}
+col.details <- data.frame(index=1:160,colname=colnames(training),na.values=rep(NA,160))
+for (i in 1:160){
+        col.details[i,3] <- sum(is.na(training[,i]))/dim(training)[1]
+}
+##finding columns to use in analysis
+cols.use <- col.details[col.details$na.values<=0.1,1]
+##view names of columns to use by na criterion
+## doing this so that I can remove some other predictors by logic
+col.details[col.details$na.values<=0.1,2]
+##relevant to drop user name 
+cols.use <- cols.use[-2]
+training <- training[,cols.use]
+```
+It was considered that the name of the participant is irrelevant for the purpose of prediction. Hence, this variable was dropped. Following this the testing data set was pruned to include only the relevant variables.
+The Random Forest model was considered the best method. This is because it provides good fit for non-linear models and is highly accurate.
+The following code was written to fit the model. It optimised the parameters to reduct the run time of the model.
+```{r}
+library(caret)
+##adjustments to improve speed of model estimation
+## set up names to avoid slowness of caret() with model syntax
+y <- training[,92]
+x <- training[,-92]
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           allowParallel = TRUE)
+modFit <- train(x,y,method="rf",trControl=fitControl)
+stopCluster(cluster)
+registerDoSEQ()
+```
+The final fitted model is shown below.
+```{r}
+modFit
+modFit$resample
+confusionMatrix.train(modFit)
+plot(modFit)
+plot(modFit$finalModel)
+```
+The above results clealy show that the model exhibits an accuracy of 99%. The out of sample error is also expected to be low at less than 95%. 
+Note that the testing database could not be used for a prediction of the out-of-sample error as it had some missing variables. 
+##Conclusion
+There are about 50 variables that provide an accurate prediction of the category based on the Random Forests fit of the model.
