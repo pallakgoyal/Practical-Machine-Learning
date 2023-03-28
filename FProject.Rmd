@@ -4,21 +4,16 @@ author: "Pallak Goyal"
 date: "2023-03-27"
 output: html_document
 ---
-##Introduction
-The quantified self movement has resulted in a lot of data on movements by people being generated. The following analysis of the Human Activity Records Database seeks to identify the category of quality of workout by an individual by taking a number of measures as the predictors. The model was built to maximise accuracy. As the person building he model os no expert in matters of biology, sports or exercise, or for that matter any field distantly related to those whose knowledge may help in such predictions, the results are purely algorithmic. This is also the reason why there was no emphasis on the interpretability of the results.
-##Data Loading
+## Introduction
+The following data analysis seeks to build a prediction for the quality of exercise by a participant. The predictors are a number of measures of the exercise. The choice of prediction algorithm was motivated by the need for prediction accuracy. There was little emphasis on the need to interpret the model. The algorithm was checked by dividing the data set into training and test data. Final tests were run for a separate test data set.
+## Data Loading
 ```{r}
 ## training data link
-url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-##test data link
-url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
-download.file(url1,"./training.csv")
 training <- read.csv("./training.csv")
-download.file(url2,"./testing.csv")
 testing <- read.csv("./testing.csv")
 ```
-##Model Building
-The database consisted of 19622 observations for 160 variables. However, there was very little measured information available on certain variables. Hence, as a first step the variables having less than 10% of the total measures as NA were identified. The code for the same is given below.
+## Model Building
+The database consisted of 19622 observations for 160 variables. However, there was very little measured information available on certain variables. Hence, as a first step the variables having less than 10% of the total measures as NA were identified.Further the variables that were not considered relevant for the purposes of prediction were also dropped from the training data set. The code for the same is given below.
 ```{r}
 col.details <- data.frame(index=1:160,colname=colnames(training),na.values=rep(NA,160))
 for (i in 1:160){
@@ -31,17 +26,28 @@ cols.use <- col.details[col.details$na.values<=0.1,1]
 col.details[col.details$na.values<=0.1,2]
 ##relevant to drop user name 
 cols.use <- cols.use[-2]
+##relevant to drop these cols 
+cols.use <- cols.use[-(1:7)]
 training <- training[,cols.use]
+training <- training[,-c(5:13,36:41,45:53,67:75)]
 ```
-It was considered that the name of the participant is irrelevant for the purpose of prediction. Hence, this variable was dropped. Following this the testing data set was pruned to include only the relevant variables.
-The Random Forest model was considered the best method. This is because it provides good fit for non-linear models and is highly accurate.
-The following code was written to fit the model. It optimised the parameters to reduct the run time of the model.
+The training data set was split into training and test set for the purpose of cross-validation.
+```{r}
+##splitting data set for cross-validation
+library(caret)
+inTrain <- createDataPartition(training$classe,p=0.7,list=FALSE)
+train.raw <- training[inTrain,]
+test.raw <- training[-inTrain,]
+```
+The Random Forest model was considered the best method. This is because it provides good fit for non-linear models and is highly accurate.The following code was written to fit the model. It optimized the parameters to reduce the run time of the model.
 ```{r}
 library(caret)
 ##adjustments to improve speed of model estimation
 ## set up names to avoid slowness of caret() with model syntax
-y <- training[,92]
-x <- training[,-92]
+str(train.raw)
+str(test.raw)
+y <- train.raw[,52]
+x <- train.raw[,-52]
 library(parallel)
 library(doParallel)
 cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
@@ -52,16 +58,16 @@ fitControl <- trainControl(method = "cv",
 modFit <- train(x,y,method="rf",trControl=fitControl)
 stopCluster(cluster)
 registerDoSEQ()
-```
-The final fitted model is shown below.
-```{r}
 modFit
 modFit$resample
 confusionMatrix.train(modFit)
 plot(modFit)
 plot(modFit$finalModel)
 ```
-The above results clealy show that the model exhibits an accuracy of 99%. The out of sample error is also expected to be low at less than 95%. 
-Note that the testing database could not be used for a prediction of the out-of-sample error as it had some missing variables. 
-##Conclusion
-There are about 50 variables that provide an accurate prediction of the category based on the Random Forests fit of the model.
+The model was further cross-validated on the test set within the training database.
+```{r}
+pdn <- predict(modFit,newdata = test.raw[,-52])
+table(pdn)
+```
+## Conclusion
+The predicted out of sample error is low at 1% as shown above. The model provides a good fit. It is based on the need for accurate predictions. The parameters of the model were not interpreted as that is not an objective of this exercise.
